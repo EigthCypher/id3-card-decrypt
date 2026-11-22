@@ -61,9 +61,13 @@ name and dict keys stable.
 ## Test cards
 
 The batch tools (`show_card.py` with no arguments, `card_to_json.py --all`,
-`test_roundtrip.py`) read every `card_*` file in `test_cards/` (git-ignored)
-and its `id3/` subfolder. Point them elsewhere with the `ID3_TEST_CARDS`
+`test_roundtrip.py`) read every `card_*` file in `test_cards/` (and an
+`id3/` subfolder, if present). Point them elsewhere with the `ID3_TEST_CARDS`
 environment variable.
+
+`test_cards/` holds a small sample: blank new cards, one player's three cards
+in play order, cards with many time-attack records (night, wet, Akina Snow),
+a card with story progress, and one with an unknown name character.
 
 Card files can be the 215-byte form the card reader sends (with its
 start/end bytes and checksum) or the bare 207-byte card body.
