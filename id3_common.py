@@ -72,19 +72,21 @@ COURSE_NAMES = [
 # names are drawn as images in-game, so they can't be read from the ROM.
 # Fill in as they're confirmed; unknown courses show "dir0"/"dir1".
 #   Akagi: dir0 = downhill (GRIFF's confirmed Akagi downhill time is dir0).
-#   Akina, Irohazaka, Akina Snow: downhill is listed first in-game (per the
-#   user); assumed to be dir0 like Akagi.
-#   Happogahara, Shomaru, Tsuchisaka: outbound listed first (per the user),
-#   assumed dir0.
-#   Myogi, Usui: clockwise assumed first (per the user; unconfirmed).
+#   Myogi, Usui: dir0 = counterclockwise; Shomaru: dir0 = outbound.
+#   Confirmed by runs the user made on a fresh card (LILY, 2026-11-22):
+#   Myogi CCW, Usui CCW, Shomaru outbound all landed in dir0.
+#   Not yet run: Akina, Irohazaka, Akina Snow assumed dir0 = downhill like
+#   Akagi; Happogahara, Tsuchisaka assumed dir0 = outbound like Shomaru.
+#   (An earlier guess at the in-game menu order had Myogi/Usui the wrong
+#   way round, so menu order is no guide.)
 COURSE_DIRECTIONS = {
-    0: ("clockwise", "counterclockwise"),    # Myogi
-    1: ("clockwise", "counterclockwise"),    # Usui
-    2: ("downhill", "uphill"),     # Akagi
+    0: ("counterclockwise", "clockwise"),    # Myogi (confirmed)
+    1: ("counterclockwise", "clockwise"),    # Usui (confirmed)
+    2: ("downhill", "uphill"),     # Akagi (confirmed)
     3: ("downhill", "uphill"),     # Akina
     4: ("outbound", "inbound"),    # Happogahara
     5: ("downhill", "uphill"),     # Irohazaka
-    6: ("outbound", "inbound"),    # Shomaru
+    6: ("outbound", "inbound"),    # Shomaru (confirmed)
     7: ("outbound", "inbound"),    # Tsuchisaka
     8: ("downhill", "uphill"),     # Akina Snow
 }
@@ -168,27 +170,40 @@ def set_field(buf, name, value):
     mask = ((1 << bits) - 1) << shift          # 1s exactly where the field lives
     set_le_word(buf, off, (le_word(buf, off) & ~mask) | ((int(value) << shift) & mask))
 
-# Car model index → display name (from ROM table at 0x0c25fa38).
+# Car model index → display name, copied from the ROM table at 0x0c25fa38
+# (35 entries).  The ROM draws Roman numerals as an escape glyph,
+# ESC 'g' <n>, where n - 2 is the numeral: CIVIC SiR-II (n=4), RX-7 ∞III
+# (n=5) and EVO. VI T.M.EDITION (n=8) are the real model names that fix this.
+# Those are spelled out in ASCII here; ∞ is Shift-JIS 0x8187 in the ROM.
+# #10/#11 read "[S14_1]"/"[S14_2]" in this table: placeholders for the
+# Japanese ROM's 前/後 (early/late S14).  They use the names the export
+# ROM gives them in its other car lists (0x0c26f6c0, 0x0c28aa80) instead:
+# "Q's [S14]" and "K's AERO [S14]".
+# Everything else is the ROM text as-is, including its spacing.
 CAR_MODELS = {
     0:  "TRUENO GT-APEX",          1:  "LEVIN GT-APEX",
     2:  "LEVIN SR",                3:  "MR2 G-Limited",
     4:  "MR-S S EDITION",          5:  "ALTEZZA RS-200",
     6:  "CELICA GT-FOUR",          7:  "SKYLINE GT-R [R32]",
     8:  "SKYLINE GT-R [R34]",      9:  "SILVIA K's [S13]",
-    10: "SILVIA Q's [S14]",        11: "SILVIA K's [S14]",
-    12: "SILVIA spec-R [S15]",     13: "180SX TYPE X",
+    10: "SILVIA Q's [S14]",        11: "SILVIA K's AERO [S14]",
+    12: "SILVIA spec-R[S15]",      13: "180SX TYPE X",
     14: "SILEIGHTY",               15: "CIVIC TYPE R [EK9]",
     16: "CIVIC SiR-II [EG6]",      17: "INTEGRA TYPE R",
-    18: "S2000",                   19: "EVOLUTION V",
-    20: "EVOLUTION VI",            21: "EVOLUTION VII",
-    22: "RX-7 Type R [FD3S]",      23: "RX-7 SPIRIT R",
-    24: "RX-7 [FC3S]",             25: "ROADSTER S [NB8C]",
-    26: "ROADSTER Ssp [NA6C]",     27: "WRX STi [GC8]",
+    18: "S2000",                   19: "EVOLUTION III",
+    20: "EVOLUTION IV",            21: "EVOLUTION VII",
+    22: "RX-7 Type R[FD3S]",       23: "RX-7 SPIRIT R",
+    24: "RX-7 ∞III [FC3S]",        25: "ROADSTER Ssp[NA6C]",
+    26: "ROADSTER RS [NB8C]",      27: "WRX STi [GC8]",
     28: "WRX STi [GDB]",           29: "WRX Type R",
     30: "CAPPUCCINO",              31: "SKYLINE 25GT TURBO [ER34]",
+    32: "EVOLUTION V",             33: "EVO. VI T.M.EDITION",
+    34: "RX-8 [SE3P]",
 }
 
-# Car index → manufacturer string (from ROM table at 0x0c25fd18).
+# Car index → manufacturer string (from ROM table at 0x0c25fd18).  The
+# index into that table comes from ROM 0x0c133de0: ranges for cars 0-30,
+# then a jump table for 31-34 (NISSAN, MITSUBISHI x2, MAZDA).
 CAR_MANUFACTURER = {}
 for _i in range(0, 7):   CAR_MANUFACTURER[_i] = "TOYOTA"
 for _i in range(7, 15):  CAR_MANUFACTURER[_i] = "NISSAN"
@@ -198,6 +213,8 @@ for _i in range(22, 27): CAR_MANUFACTURER[_i] = "MAZDA"
 for _i in range(27, 30): CAR_MANUFACTURER[_i] = "SUBARU  IMPREZA"
 CAR_MANUFACTURER[30] = "SUZUKI"
 CAR_MANUFACTURER[31] = "NISSAN"
+CAR_MANUFACTURER[32] = CAR_MANUFACTURER[33] = "MITSUBISHI LANCER"
+CAR_MANUFACTURER[34] = "MAZDA"
 
 # Tuning part names, in the order of card_to_json.decode_tuning's 11 slots
 # (game debug-dump labels; the expansions in brackets are guesses).

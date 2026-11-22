@@ -286,15 +286,26 @@ def decode_split(raw, T, course, direction, k):
 
 # ── records ───────────────────────────────────────────────────────────
 
-def format_units(units):
-    """Game time units (1/6000 second) -> M'SS"mmm, rounded to the millisecond.
+def units_to_ms(units):
+    """Game time units (1/6000 second) -> whole milliseconds, rounded DOWN.
 
-    (6 units = 1 millisecond.)  None stays None.
+    The game drops the fraction rather than rounding: on a test run (LILY,
+    Usui) the lap-1 checkpoint decodes to 98136.83 ms and the game showed
+    1'38"136.  None stays None.
     """
-    if units is None:
+    return None if units is None else units // 6
+
+
+def format_ms(ms):
+    """Whole milliseconds -> M'SS"mmm.  None stays None."""
+    if ms is None:
         return None
-    ms = round(units / 6)
     return f"{ms // 60000}'{ms // 1000 % 60:02d}\"{ms % 1000:03d}"
+
+
+def format_units(units):
+    """Game time units (1/6000 second) -> M'SS"mmm, truncated to the millisecond."""
+    return format_ms(units_to_ms(units))
 
 
 def read_records(data):
@@ -387,8 +398,11 @@ def readable_times(rec):
                for k, raw in enumerate(rec['split_raw'])]
         out['checkpoints'] = [format_units(c) for c in cps]
         # Section times are the gaps between consecutive marks:
-        # start (0), each checkpoint, finish (T).
+        # start (0), each checkpoint, finish (T).  Like the game, cut each
+        # mark to whole ms first and then subtract (Usui lap 2 showed
+        # 1'30"074 = 3'08"210 - 1'38"136, not the 1'30"073 that subtracting
+        # exact times gives).
         if None not in cps:
-            marks = [0] + cps + [T]
-            out['sections'] = [format_units(b - a) for a, b in zip(marks, marks[1:])]
+            marks = [units_to_ms(m) for m in [0] + cps + [T]]
+            out['sections'] = [format_ms(b - a) for a, b in zip(marks, marks[1:])]
     return out

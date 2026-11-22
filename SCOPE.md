@@ -25,7 +25,7 @@ and comment the decryption so it can be followed without a crypto background.
 | 7 | Map the rest of the named card fields | open |
 | 8 | Fix stale Mac paths so tests run here | done — `id3_common.known_cards()` reads `test_cards/` (override `$ID3_TEST_CARDS`) |
 | 9 | Explain the last unmapped bits | **done** — every bit the card parser reads is named (see "Full field map"); left: 0xB0 bits 1-3 (read, unnamed, always 1), 0xBC bits 5-7 and bytes 0x11-0x13 (never read) |
-| 10 | Name the courses / directions / variant | **courses done** (see below). Variant = weather (0 dry / 1 wet, debug loop labels DRY/RAIN at `0x0c16775a`). Direction pairs differ per course (downhill/uphill, inbound/outbound, clockwise/counterclockwise — per the user); labels are images, not in the ROM text. Known: Akagi dir0 = downhill (confirmed); Akina, Irohazaka, Akina Snow downhill first (user), assumed dir0. Happogahara, Shomaru, Tsuchisaka outbound first (user), assumed dir0. Myogi, Usui clockwise first (user assumption, unconfirmed). Table: `id3_common.COURSE_DIRECTIONS`. Areas-beaten bit order assumed = course order (not traced) |
+| 10 | Name the courses / directions / variant | **courses done** (see below). Variant = weather (0 dry / 1 wet, debug loop labels DRY/RAIN at `0x0c16775a`). Direction pairs differ per course (downhill/uphill, inbound/outbound, clockwise/counterclockwise — per the user); labels are images, not in the ROM text. Confirmed: Akagi dir0 = downhill; Myogi dir0 = counterclockwise, Usui dir0 = counterclockwise, Shomaru dir0 = outbound (test runs on the LILY card). Assumed: Akina, Irohazaka, Akina Snow dir0 = downhill; Happogahara, Tsuchisaka dir0 = outbound. Table: `id3_common.COURSE_DIRECTIONS`. Areas-beaten bit order assumed = course order (not traced) |
 | 12 | Name character set: bytes 0xBC-0xDB (symbols?) — e.g. 0xBD on card_4E8qSQ shows as `\\` | open |
 | 11 | Word 0xB4 bit 14 | **done** — it is `isManual` |
 
@@ -50,6 +50,8 @@ For Ver.3:
 - **36 records** (not 24): 8 recent slots + the other 28 in ascending order. Uses 1112 bits.
 - **Total time: seconds = raw / 1500** (units = raw × 4, in 1/6000 s). No 1'30" offset.
   The old notes' ÷1.5 was right; "2'07\"782" below is wrong (KFHf8Z slot 4 = 2'31"129).
+- **Display truncates to whole ms** (not rounding; confirmed on LILY's Usui laps,
+  see work log). Section/lap times = differences of the truncated marks.
 - **Splits are checkpoint times**: `value = dequantise(raw) − T//sections + trunc(T·cum[k])`,
   with `cum` from the 9-course weights. Quantiser is the same as below.
 - **isNight per slot**: slots 0–23 → word 0xAC bits 0–23; slots 24–35 → u16 at 0xC0.
@@ -117,8 +119,8 @@ it with the current course (`*(0x0c31c99c + 4)`):
 | 7 | Tsuchisaka | lecmap_tuchizaka |
 | 8 | Akina Snow | lecmap_akina (reused) |
 
-Cross-checks: course 8 reuses Akina's section weights; GRIFF's 2'31"129 decodes
-as Akagi dir0, matching the user's earlier confirmed Akagi downhill time.
+Cross-checks: course 8 reuses Akina's section weights; GRIFF's 2'31"129 (151128.67 ms
+exact; 2'31"128 with the game's truncation) decodes as Akagi dir0, matching the user's earlier confirmed Akagi downhill time.
 Other name lists in the ROM (`0x0c1554c8`, `0x0c1b32c8`, `0x0c18aeec`) are
 literal pools, so their order means nothing. The isNight flag's debug labels are
 `NIGHT`/`DAY` (`0x0c2a5c6c`).
@@ -227,3 +229,31 @@ ROM. If an opportunity comes up, these would confirm the findings:
   Renamed seed->points, class->color, bunta_level->round, track_nibbles->bunta_levels.
 - 2026-11-22: Bunta levels named per course (HD Akagi, DF Akina, VH Happogahara, UH Irohazaka).
   Course-select direction images are in compressed .NZ assets; not pursued.
+- 2026-11-22: Directions checked with test runs on a fresh card (LILY). The user
+  drove Myogi counterclockwise, Usui counterclockwise, Shomaru outbound; all
+  three were stored as direction 0, and the recent-slot order (12, 2, 0)
+  matches the run order. Myogi/Usui labels were the wrong way round (had
+  clockwise as dir0) and are fixed.
+- 2026-11-22: Millisecond display checked against the same LILY runs. The game
+  truncates to whole ms (it doesn't round): Usui lap-1 checkpoint decodes to
+  98136.83 ms, shown in-game as 1'38"136; lap 2 shown as 1'30"074 =
+  3'08"210 - 1'38"136, so sections are differences of truncated marks. Myogi
+  and Shomaru totals now read 1 ms lower (3'05"890, 3'28"822), matching the
+  in-game 1 ms gap. GRIFF Akagi downhill now reads 2'31"128 (exact 151128.67 ms);
+  the 2'31"129 seen earlier fits if it was read on the results screen, since
+  the card keeps units/4 and drops up to 0.5 ms.
+- 2026-11-22: Car table fix. Re-read the ROM car-name table (0x0c25fa38):
+  #25 = "ROADSTER Ssp[NA6C]", #26 = "ROADSTER RS [NB8C]". Our table had them
+  as "ROADSTER S [NB8C]" / "ROADSTER Ssp [NA6C]". Confirmed by the LILY card
+  (#25), whose car has pop-up headlights (NA). The ROM table has 35 entries;
+  32-34 (EVOLUTION VIII?, EVO. IX? T.M.EDITION, RX-8 [SE3P]) aren't in our
+  table yet; names use \x1bg<n> escape glyphs (Roman numerals, the infinity sign).
+- 2026-11-22: Car table now copied in full from the ROM (35 cars). Escape glyph
+  ESC 'g' <n> = Roman numeral n-2 (fixed by CIVIC SiR-II n=4, RX-7 ∞III n=5,
+  EVO. VI T.M.EDITION n=8), so #19/#20 are EVOLUTION III/IV, not V/VI; #24 is
+  RX-7 ∞III [FC3S]; #32 EVOLUTION V, #33 EVO. VI T.M.EDITION, #34 RX-8 [SE3P].
+  S14s are [S14_1]/[S14_2] in this table, standing in for the Japanese ROMs'
+  [S14前]/[S14後] (early/late); named "SILVIA Q's [S14]" / "SILVIA K's AERO
+  [S14]" as in the export ROM's other car lists (0x0c26f6c0, 0x0c28aa80). Makers for 31-34 from the jump table at
+  0x0c133de0 (NISSAN, MITSUBISHI LANCER x2, MAZDA). One display path
+  (0x0c0b013a) masks the car index to 5 bits; the card field is 6 bits.

@@ -34,9 +34,9 @@ Example `show_card.py` output:
    versus       5W 2L, streak 3, level 2, vs_exp 4
    bunta lv     Akagi=0 Akina=0 Happogahara=0 Irohazaka=0   round 1   plays left 28   NPCs beaten 2/31
    tuning       fsp=2 bon=1 mir=2 sid=2 bmp=0 rsp=2 muf=2 whl=2 pow=12 stk=0 e1e2=0
-   TA Akagi downhill                 2'31"129   sections 0'43"350  0'32"146  0'39"439  0'36"194
-   TA Akagi uphill                   2'42"589   sections 0'42"427  0'41"590  0'35"663  0'42"909
-   TA Usui counterclockwise          3'03"627   sections 0'49"222  0'46"447  0'42"682  0'45"277
+   TA Akagi downhill                 2'31"128   sections 0'43"350  0'32"146  0'39"439  0'36"193
+   TA Akagi uphill                   2'42"588   sections 0'42"427  0'41"589  0'35"663  0'42"909
+   TA Usui clockwise                 3'03"627   sections 0'49"221  0'46"447  0'42"682  0'45"277
 ```
 
 ## Files
@@ -115,9 +115,10 @@ names (`fsp`, `bon`, ...) are the game's abbreviations; their expansions in
 `id3_common.TUNING_PARTS` are guesses.
 
 Also open:
-- Which direction is listed first. Only Akagi (downhill = direction 0) is
-  confirmed against a real time; the others are assumptions, marked in
-  `id3_common.COURSE_DIRECTIONS`.
+- Which direction is direction 0 on Akina, Happogahara, Irohazaka,
+  Tsuchisaka and Akina Snow. Akagi (downhill), Myogi and Usui
+  (counterclockwise) and Shomaru (outbound) are confirmed by in-game runs;
+  the rest are assumptions, marked in `id3_common.COURSE_DIRECTIONS`.
 - Word 0xB0 bits 1-3: read by the game (forced to at least 1) but not in
   its debug dump. 1 on every test card.
 - Word 0xBC bits 5-7 and bytes 0x11-0x13: never read by the game's card
