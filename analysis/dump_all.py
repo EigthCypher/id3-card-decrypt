@@ -14,5 +14,5 @@ for p in paths:
     d = decode_card_to_dict(dec, cid, seed)
     print(f"{cid}  {d['name']!r:10} car={d['car']['index']:2} key={d['key_number']:3} "
           f"areas={''.join('1' if v else '0' for v in d['areas_beaten'].values())} "
-          f"lvl={d['racer_level']:3} plays={d['plays_remaining']:3} npc={d['npcs_defeated']}")
+          f"lvl={d['dr_level']:3} plays={d['plays_remaining']:3} npc={d['npcs_defeated']}")
 json.dump(out, open(os.path.join(os.path.dirname(__file__), 'plaintexts.json'), 'w'), indent=1)

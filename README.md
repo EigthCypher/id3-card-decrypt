@@ -45,10 +45,10 @@ Example `show_card.py` output:
 |---|---|
 | `show_card.py` | Prints a readable summary of one or more cards |
 | `card_to_json.py` | Decrypts a card and writes every known field as JSON |
-| `json_to_card.py` | Builds an encrypted card file from that JSON |
+| `json_to_card.py` | Builds an encrypted card file from that JSON (partial edits are merged; invalid or output-only edits are rejected with an error) |
 | `card_export.py` | Writes a hex dump, the decrypted binary and `printdata.php` (for the card-print page) |
-| `reset_plays.py` | Writes a copy of a card with plays remaining set to 46 |
-| `test_roundtrip.py` | Checks every test card survives decode -> encode -> encrypt unchanged |
+| `reset_plays.py` | Writes a copy of a card with plays remaining set to 46 (or `--plays N`, 0-127) |
+| `test_roundtrip.py` | Checks every test card survives decode -> encode -> encrypt unchanged, lists the bits no field covers, and round-trips 2,000 random cards |
 | `id3_cipher.py` | The encryption, re-created from the game's code and commented step by step |
 | `id3_timeattack.py` | Time-attack records: best times and checkpoint splits |
 | `id3_common.py` | Shared field layout, course and car names, card file I/O |

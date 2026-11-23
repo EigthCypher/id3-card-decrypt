@@ -22,7 +22,7 @@ from id3_common import (
     AREA_NAMES, COURSE_NAMES, WEATHER_NAMES, TUNING_PARTS, BUNTA_LEVEL_NAMES,
     direction_name, CAR_MODELS, NPC_STATUS, WORD_FIELDS,
     le_word, get_field, load_and_decrypt, decode_name, known_cards,
-    banner, status,
+    banner, status, run_cli,
 )
 import id3_timeattack as ta
 
@@ -110,9 +110,6 @@ def decode_card_to_dict(data, card_id=None, cipher_seed=0):
     # Simple bit fields (table in id3_common.WORD_FIELDS)
     for name in WORD_FIELDS:
         result[name] = get_field(data, name)
-    # Readable alias: the racer level is the game's "dr_level".
-    # Output only — json_to_card reads dr_level.
-    result["racer_level"] = result["dr_level"]
 
     result["tuning"] = decode_tuning(data)
 
@@ -155,9 +152,11 @@ def main():
 
     # A single card is written as one object, several as a list.
     output = cards_out[0] if len(cards_out) == 1 else cards_out
-    json_str = json.dumps(output, indent=2, ensure_ascii=False)
+    # ensure_ascii (the default) stores non-ASCII text such as the ∞ of car
+    # #24 as \u221e: the file is pure ASCII and reads back the same.
+    json_str = json.dumps(output, indent=2)
     if args.output:
-        with open(args.output, "w") as f:
+        with open(args.output, "w", encoding="utf-8") as f:
             f.write(json_str + "\n")
         status(f"Written to {args.output}")
     else:
@@ -165,4 +164,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

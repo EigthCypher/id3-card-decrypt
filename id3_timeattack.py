@@ -81,6 +81,7 @@ RECENT_COUNT = 8               # how many slots keep checkpoint splits
 BITS_SLOT = 6                  # a slot id (0-35) fits in 6 bits
 BITS_TIME = 19                 # a total time, raw (see "Time units")
 BITS_SPLIT = 17                # one compressed checkpoint
+NO_SPLIT = (1 << BITS_SPLIT) - 1   # 0x1FFFF, all ones: the game's "no checkpoint"
 
 RAW_TO_UNITS = 4               # stored total = units >> 2, so units = raw * 4
 
@@ -170,20 +171,36 @@ class BitReader:
 
 
 class BitWriter:
-    """Builds a bitstream; the exact mirror of BitReader."""
+    """Builds a bitstream; the exact mirror of BitReader.
 
-    def __init__(self, size=STREAM_BYTES):
-        self.buf = bytearray(size)   # starts as all-zero bits
+    `base` (optional) is the existing stream: bits past the last one
+    written keep their old value, so the unused tail of the stream
+    survives a rewrite.  Without it the buffer starts as all zeros.
+    """
+
+    def __init__(self, size=STREAM_BYTES, base=None):
+        self.buf = bytearray(base) if base is not None else bytearray(size)
+        if len(self.buf) != size:
+            raise ValueError(f"time-attack stream must be {size} bytes, got {len(self.buf)}")
         self.pos = 0                 # next bit to write
 
-    def write(self, value, n):
-        """Append the low n bits of value, highest bit first."""
+    def write(self, value, n, what="value"):
+        """Append value as n bits, highest bit first.
+
+        Raises ValueError if value doesn't fit in n bits, or the stream is full.
+        """
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < (1 << n):
+            raise ValueError(f"time attack {what}: {value!r} doesn't fit in {n} bits "
+                             f"(0-{(1 << n) - 1})")
+        if self.pos + n > len(self.buf) * 8:
+            raise ValueError("time-attack records don't fit in the card's stream")
         for i in range(n):
-            # Only 1-bits need writing; the buffer is already all zeros.
+            off = (self.pos // 32) * 4
+            mask = 1 << (self.pos % 32)
+            word = struct.unpack_from('<I', self.buf, off)[0] & ~mask
             if (value >> (n - 1 - i)) & 1:
-                off = (self.pos // 32) * 4
-                word = struct.unpack_from('<I', self.buf, off)[0] | (1 << (self.pos % 32))
-                struct.pack_into('<I', self.buf, off, word)
+                word |= mask
+            struct.pack_into('<I', self.buf, off, word)
             self.pos += 1
 
 
@@ -268,7 +285,8 @@ def dequantise(raw, T, nsec, width=BITS_SPLIT):
 def decode_split(raw, T, course, direction, k):
     """Time at checkpoint k (1 = first inner checkpoint), in units.
 
-    Returns None if the card has nothing for it.
+    Returns None if the card has nothing for it (0, or the game's
+    all-ones "no checkpoint" value 0x1FFFF).
 
         checkpoint = dequantised - T/sections + T * (fraction of course
                                                     covered by section k)
@@ -277,6 +295,8 @@ def decode_split(raw, T, course, direction, k):
     position.  This inverts the game's encoder at ROM 0x0c1ab3f6, using
     the same rounding (whole-number divide, 32-bit float multiply).
     """
+    if raw == NO_SPLIT:
+        return None
     nsec = SECTIONS[course]
     d = dequantise(raw, T, nsec)
     if d == 0:
@@ -341,28 +361,50 @@ def read_records(data):
     return count, recent, records, r.pos
 
 
-def write_records(count, recent, records):
+def write_records(count, recent, records, base=None):
     """Rebuild the 144-byte bitstream; the exact reverse of read_records.
 
     Writes the raw stored numbers (time_raw / split_raw) back as they
     were, so an unedited card comes back byte-for-byte identical.
     A recent slot with no split_raw gets 0x1FFFF (all ones), which is what
-    the game writes for "no checkpoint".
+    the game writes for "no checkpoint".  `base` is the card's current
+    stream; the unused bits after the last record are kept from it.
+
+    Raises ValueError if `recent` isn't 8 different slot ids, a record's
+    slot is invalid or repeated, or a value doesn't fit its bits.
     """
-    by_slot = {rec['slot']: rec for rec in records}
-    w = BitWriter()
-    w.write(count, BITS_SLOT)
+    recent = list(recent)
+    if len(recent) != RECENT_COUNT or len(set(recent)) != RECENT_COUNT:
+        raise ValueError(f"recent_slots must be {RECENT_COUNT} different slot ids, got {recent}")
     for s in recent:
-        w.write(s, BITS_SLOT)
-    order = list(recent) + sorted(s for s in range(SLOT_COUNT) if s not in recent)
+        if isinstance(s, bool) or not isinstance(s, int) or not 0 <= s < SLOT_COUNT:
+            raise ValueError(f"recent_slots: {s!r} is not a slot id (0-{SLOT_COUNT - 1})")
+    by_slot = {}
+    for rec in records:
+        slot = rec.get('slot')
+        if isinstance(slot, bool) or not isinstance(slot, int) or not 0 <= slot < SLOT_COUNT:
+            raise ValueError(f"time attack slot {slot!r} is not a slot id (0-{SLOT_COUNT - 1})")
+        if slot in by_slot:
+            raise ValueError(f"time attack slot {slot} appears twice")
+        by_slot[slot] = rec
+
+    w = BitWriter(base=base)
+    w.write(count, BITS_SLOT, "recent_count")
+    for s in recent:
+        w.write(s, BITS_SLOT, "recent slot")
+    order = recent + sorted(s for s in range(SLOT_COUNT) if s not in recent)
     for pos, slot in enumerate(order):
         rec = by_slot.get(slot, {})
-        w.write(rec.get('time_raw', 0), BITS_TIME)
+        w.write(rec.get('time_raw', 0), BITS_TIME, f"slot {slot} time_raw")
         if pos < RECENT_COUNT:
             n = SECTIONS[slot_info(slot)[0]] - 1
-            splits = rec.get('split_raw', [0x1FFFF] * n)
+            splits = rec.get('split_raw', [NO_SPLIT] * n)
+            if len(splits) > n:
+                raise ValueError(f"slot {slot} split_raw has {len(splits)} values; "
+                                 f"this course has {n} checkpoints")
             for j in range(n):
-                w.write(splits[j] if j < len(splits) else 0x1FFFF, BITS_SPLIT)
+                w.write(splits[j] if j < len(splits) else NO_SPLIT, BITS_SPLIT,
+                        f"slot {slot} split_raw[{j}]")
     return bytes(w.buf)
 
 

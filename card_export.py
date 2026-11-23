@@ -18,7 +18,7 @@ import sys, os, argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from id3_common import (
     CAR_MANUFACTURER, CARD_IMAGE,
-    load_and_decrypt, write_printdata, banner, status, result_line,
+    load_and_decrypt, write_printdata, banner, status, result_line, run_cli,
 )
 from card_to_json import decode_card_to_dict
 
@@ -69,7 +69,7 @@ def write_card_printdata(path, fields):
 def write_hex_dump(data, path):
     """Hex dump: offset, 16 bytes in hex, then the same bytes as text
     (non-printable bytes shown as '.')."""
-    with open(path, 'w') as f:
+    with open(path, 'w', encoding='utf-8') as f:
         f.write(f"# Decrypted Initial D Ver.3 card data ({len(data)} bytes)\n")
         f.write(f"# Seed: 0x{int.from_bytes(data[0:4], 'little'):08x}\n\n")
         for off in range(0, len(data), 16):
@@ -90,8 +90,15 @@ def main():
         sys.exit(f"Error: file not found: {args.cardfile}")
 
     outdir = args.outdir or os.path.dirname(os.path.abspath(args.cardfile))
-    os.makedirs(outdir, exist_ok=True)
     base = os.path.join(outdir, os.path.splitext(os.path.basename(args.cardfile))[0])
+    # A card named e.g. dump.bin would otherwise be overwritten by its own
+    # decrypted export (dump.bin), destroying the card.
+    src = os.path.normcase(os.path.realpath(args.cardfile))
+    for ext in (".hex", ".bin", ".printdata.php"):
+        if os.path.normcase(os.path.realpath(base + ext)) == src:
+            sys.exit(f"Error: exporting would overwrite the card file itself ({base + ext}).\n"
+                     f"Use --outdir to write the export somewhere else, or rename the card.")
+    os.makedirs(outdir, exist_ok=True)
 
     banner(f"card_export — {os.path.basename(base)}")
     dec, _ = load_and_decrypt(args.cardfile)
@@ -116,4 +123,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run_cli(main)

@@ -8,7 +8,7 @@ Usage:
 import sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from id3_common import known_cards, load_and_decrypt
+from id3_common import known_cards, load_and_decrypt, run_cli
 from card_to_json import decode_card_to_dict
 
 def show(card_id, path):
@@ -44,8 +44,12 @@ def show(card_id, path):
     print()
 
 
-if __name__ == "__main__":
+def main():
     # Cards named on the command line, or every test card if none.
     targets = [(os.path.basename(p), p) for p in sys.argv[1:]] or known_cards()
     for cid, p in targets:
         show(cid, p)
+
+
+if __name__ == "__main__":
+    run_cli(main)

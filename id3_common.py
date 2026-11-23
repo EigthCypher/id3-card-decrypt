@@ -163,18 +163,36 @@ def set_field(buf, name, value):
     """Write one WORD_FIELDS field into a plaintext bytearray.
 
     Only that field's bits change: the field's old bits are cleared with a
-    mask, then the new value is shifted into place.  Values too big for
-    the field are cut down to fit.
+    mask, then the new value is shifted into place.  A value that doesn't
+    fit the field raises ValueError (rather than being silently cut down).
     """
     off, shift, bits = WORD_FIELDS[name]
+    value = check_uint(value, bits, name)
     mask = ((1 << bits) - 1) << shift          # 1s exactly where the field lives
-    set_le_word(buf, off, (le_word(buf, off) & ~mask) | ((int(value) << shift) & mask))
+    set_le_word(buf, off, (le_word(buf, off) & ~mask) | (value << shift))
+
+
+def check_uint(value, bits, what):
+    """Return value as an int if it is a whole number that fits in `bits`
+    bits (0 .. 2**bits - 1); otherwise raise ValueError naming `what`.
+
+    Booleans are accepted as 0/1 (the JSON stores some flags as true/false).
+    """
+    if isinstance(value, bool):
+        value = int(value)
+    if not isinstance(value, int):
+        raise ValueError(f"{what}: expected a whole number, got {value!r}")
+    if not 0 <= value < (1 << bits):
+        raise ValueError(f"{what}: {value} is out of range (0-{(1 << bits) - 1})")
+    return value
 
 # Car model index → display name, copied from the ROM table at 0x0c25fa38
 # (35 entries).  The ROM draws Roman numerals as an escape glyph,
 # ESC 'g' <n>, where n - 2 is the numeral: CIVIC SiR-II (n=4), RX-7 ∞III
 # (n=5) and EVO. VI T.M.EDITION (n=8) are the real model names that fix this.
-# Those are spelled out in ASCII here; ∞ is Shift-JIS 0x8187 in the ROM.
+# The numerals are spelled out in ASCII here.  The ∞ of RX-7 ∞III (Shift-JIS
+# 0x8187 in the ROM) is kept as the Unicode character, so this table is not
+# pure ASCII: the tools write text as UTF-8 (see utf8_stdio).
 # #10/#11 read "[S14_1]"/"[S14_2]" in this table: placeholders for the
 # Japanese ROM's 前/後 (early/late S14).  They use the names the export
 # ROM gives them in its other car lists (0x0c26f6c0, 0x0c28aa80) instead:
@@ -293,12 +311,22 @@ def load_card_body(path):
     over the serial line, see wrap_protocol_frame) or a raw 207-byte body.
     For a frame, the body is bytes 6-212: the 6 bytes before it are the
     start byte and header, the 2 after it the end byte and checksum.
+    The frame's start/end bytes and checksum are checked; any other file
+    size raises ValueError.
     """
     with open(path, 'rb') as f:
         data = f.read()
     if len(data) == 215:
+        if data[0] != 0x02 or data[213] != 0x03:
+            raise ValueError(f"{path}: 215-byte file but not a card frame "
+                             f"(start/end bytes {data[0]:02x}/{data[213]:02x}, expected 02/03)")
+        if frame_checksum(data) != data[214]:
+            raise ValueError(f"{path}: frame checksum mismatch (stored {data[214]:02x}, "
+                             f"computed {frame_checksum(data):02x}); the file is damaged")
         return data[6:6+207]
-    return data
+    if len(data) == 207:
+        return data
+    raise ValueError(f"{path}: {len(data)} bytes; a card file is 215 (framed) or 207 (body) bytes")
 
 
 def load_and_decrypt(path):
@@ -327,6 +355,8 @@ def encrypt_card(plaintext, cipher_seed):
         [146:207] ciphertext block 2 (61 bytes)
     """
     from id3_cipher import cipher_main
+    if len(plaintext) != 195:
+        raise ValueError(f"card plaintext must be 195 bytes, got {len(plaintext)}")
     ciphertext = cipher_main(cipher_seed, plaintext)
     body = bytearray(207)
     struct.pack_into('<I', body, 0, cipher_seed)
@@ -346,18 +376,25 @@ def wrap_protocol_frame(body_207):
         [213]     ETX  (0x03)
         [214]     checksum (XOR of bytes 1-213)
     """
+    if len(body_207) != 207:
+        raise ValueError(f"card body must be 207 bytes, got {len(body_207)}")
     frame = bytearray(215)
     frame[0]     = 0x02                          # STX: "start of text"
     frame[1:6]   = b'\xd5\x33\x78\x30\x30'      # fixed header bytes
     frame[6:213] = body_207
     frame[213]   = 0x03                          # ETX: "end of text"
-    # Checksum: XOR of every byte after STX up to and including ETX.
-    # The reader recomputes it to catch transmission errors.
+    frame[214] = frame_checksum(frame)
+    return bytes(frame)
+
+
+def frame_checksum(frame):
+    """Checksum of a 215-byte frame: XOR of every byte after STX up to and
+    including ETX (bytes 1-213).  The reader recomputes it to catch
+    transmission errors."""
     cksum = 0
     for b in frame[1:214]:
         cksum ^= b
-    frame[214] = cksum & 0xFF
-    return bytes(frame)
+    return cksum
 
 # ─── field helpers ────────────────────────────────────────────────────
 
@@ -371,31 +408,62 @@ def decode_name(data, offset=0x04, length=5):
 
     Letters are stored as (ASCII code + 0x61): 0xA2 = 'A' ... 0xBB = 'Z'.
     0xDC is a blank; trailing blanks (padding) are dropped.
-    Other bytes that don't land on printable ASCII are shown as hex escapes.
+    Other bytes that don't land on printable ASCII are shown as a hex
+    escape, \\xNN (4 characters), which encode_name() turns back into
+    the same byte, so decode -> encode always gives the original 5 bytes.
     (Bytes 0xBC-0xDB are probably symbols in the game's own character set;
     e.g. card_4E8qSQ has 0xBD, which this formula shows as a backslash.)
     """
+    raw = data[offset:offset+length]
+    # Trailing blanks are padding; anything before them is shown.
+    end = len(raw)
+    while end and raw[end - 1] == NAME_BLANK:
+        end -= 1
     chars = []
-    for b in data[offset:offset+length]:
+    for i, b in enumerate(raw[:end]):
         c = b - 0x61
         if b == NAME_BLANK:
             chars.append(' ')
-        elif 0x20 <= c < 0x7f:
+        elif 0x21 <= c < 0x7f and not (c == 0x5C and _looks_like_escape(raw, i)):
             chars.append(chr(c))
         else:
+            # Not printable, or 0x81 (= ASCII space, but the game's blank
+            # is 0xDC), or a backslash that would read as the start of an
+            # escape: show the byte itself.
             chars.append(f'\\x{b:02x}')
-    return ''.join(chars).rstrip(' ')
+    return ''.join(chars)
+
+
+def _looks_like_escape(raw, i):
+    """True if the bytes after a backslash at raw[i] decode as 'x' + 2 hex
+    digits, so the backslash must itself be escaped to stay unambiguous."""
+    nxt = ''.join(chr(b - 0x61) if 0x21 <= b - 0x61 < 0x7f else '?' for b in raw[i + 1:i + 4])
+    return len(nxt) == 3 and nxt[0] == 'x' and all(ch in '0123456789abcdefABCDEF' for ch in nxt[1:])
 
 
 def encode_name(name, length=5):
     """Encode a player name string back to card bytes.
 
     Each character is stored as (ASCII code + 0x61); spaces and padding
-    use the game's blank byte 0xDC.
+    use the game's blank byte 0xDC.  \\xNN (as decode_name writes it)
+    stores byte NN as-is.  Raises ValueError for a name longer than 5
+    characters or a character outside printable ASCII.
     """
-    out = bytearray([NAME_BLANK] * length)
-    for i, ch in enumerate(name[:length]):
-        out[i] = NAME_BLANK if ch == ' ' else (ord(ch) + 0x61) & 0xFF
+    import re
+    out = bytearray()
+    for esc, ch in re.findall(r'\\x([0-9a-fA-F]{2})|(.)', name, re.S):
+        if esc:
+            out.append(int(esc, 16))
+        elif ch == ' ':
+            out.append(NAME_BLANK)
+        elif 0x21 <= ord(ch) < 0x7f:
+            out.append(ord(ch) + 0x61)
+        else:
+            raise ValueError(f"name {name!r}: {ch!r} can't be stored on a card "
+                             f"(printable ASCII only, or \\xNN for a raw byte)")
+    if len(out) > length:
+        raise ValueError(f"name {name!r} is {len(out)} characters; the card holds {length}")
+    out += bytes([NAME_BLANK] * (length - len(out)))
     return out
 
 
@@ -461,3 +529,28 @@ def status(msg):
 def result_line(label, value, width=20):
     """Print a label: value pair with aligned columns (to stdout)."""
     print(f"  {label:<{width}} {value}")
+
+
+def utf8_stdio():
+    """Make stdout/stderr UTF-8, so printing a non-ASCII car name (∞) can't
+    crash.  Windows Python otherwise uses the cp1252 code page when output
+    is redirected or piped, and cp1252 has no ∞."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
+def run_cli(main):
+    """Run a tool's main(): set up UTF-8 output, and turn expected errors
+    (bad input file, invalid JSON value, ...) into a one-line message and
+    exit status 1 instead of a Python traceback."""
+    import json
+    utf8_stdio()
+    try:
+        return main()
+    except (ValueError, KeyError, TypeError, OSError, json.JSONDecodeError) as e:
+        msg = e.args[0] if isinstance(e, KeyError) and e.args else e
+        kind = "missing key" if isinstance(e, KeyError) else type(e).__name__
+        sys.exit(f"Error ({kind}): {msg}")
