@@ -257,3 +257,25 @@ ROM. If an opportunity comes up, these would confirm the findings:
   [S14]" as in the export ROM's other car lists (0x0c26f6c0, 0x0c28aa80). Makers for 31-34 from the jump table at
   0x0c133de0 (NISSAN, MITSUBISHI LANCER x2, MAZDA). One display path
   (0x0c0b013a) masks the car index to 5 bits; the card field is 6 bits.
+- 2026-11-24: BGM setting seen in-game by the user: three options, on / off / fix.
+  Fix always plays the song selected in the game menu, so `bgm` is presumably
+  the mode and `bgm_num` that song. `bgm` 0 = on (confirmed by the user;
+  all 9 test cards have 0, with `bgm_num` ranging 0-9). 1 = off and 2 = fix are
+  assumed from that; no card with either has been seen yet.
+- 2026-11-24: Navi setting seen in-game by the user: on / off / papercup.
+  `navi` 0 = on (confirmed by the user; all 9 test cards have 0). 1 = off and
+  2 = papercup are assumed, as for `bgm`.
+- 2026-11-24: Steering setting is 1-9 in-game, 5 on most cards (user). All 9 test
+  cards store 4, so the card holds setting - 1 (0-8). Only the 5 = 4 pair has
+  been seen; the other values are inferred.
+- 2026-11-24: Time display setting is normal / simple; normal is what every card
+  should have (user). All 9 test cards have `time_disp` 0, so 0 = normal. The
+  field is one bit, so 1 = simple is inferred; no card with it has been seen.
+- 2026-11-24: Forced quit setting is off / on, off on most if not all cards (user);
+  presumably `force_end`. All 9 test cards have 0, so 0 = off; 1 = on is
+  inferred (one-bit field), no card with it has been seen.
+- 2026-11-24: Patterns on the 9 test cards, not confirmed in-game: `round` is 1 only
+  on GRIFF KFHf8Z/3rGDTC, which have 1-2 rivals beaten against 21 on the earlier
+  8LmsP8, so it may be a story lap that resets rivals. `level` = `vslv_max` on
+  every card. `tune_comp` is 1 on exactly the cards with `pow` >= 7. Rival
+  status 3, and non-zero Bunta levels, don't occur.

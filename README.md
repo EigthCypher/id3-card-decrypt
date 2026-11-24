@@ -106,11 +106,23 @@ compressed relative to the total time, and `id3_timeattack.py` walks through
 how. Courses, in the game's numbering: Myogi, Usui, Akagi, Akina,
 Happogahara, Irohazaka, Shomaru, Tsuchisaka, Akina Snow.
 
+**Option settings** (as stored on the card; values marked * are assumed,
+not yet seen on a card):
+
+| Field | Values |
+|---|---|
+| `bgm` | 0 on, 1 off*, 2 fix* (always plays the song chosen in the menu) |
+| `bgm_num` | the chosen song*; song names not mapped yet |
+| `navi` | 0 on, 1 off*, 2 papercup* |
+| `steering` | in-game setting 1-9 minus 1: 4 = the usual 5, others* |
+| `time_disp` | 0 normal, 1 simple* |
+| `force_end` | forced quit: 0 off, 1 on* |
+
 ## Not yet known
 
 Every bit the game reads now has a name, but some names don't say what
 they do in play: `objeye`, `ero`, `parts_crs`, `parts_seq`, `wheel_cnt`,
-`wheel_id`, `navi`, `round`, `level`, `vslv_max`, `e1e2`. The tuning part
+`wheel_id`, `round`, `level`, `vslv_max`, `e1e2`. The tuning part
 names (`fsp`, `bon`, ...) are the game's abbreviations; their expansions in
 `id3_common.TUNING_PARTS` are guesses.
 

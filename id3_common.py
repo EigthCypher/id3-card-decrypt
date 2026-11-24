@@ -133,12 +133,12 @@ WORD_FIELDS = {
     "win_cont":        (0xB4, 7, 7),    # "win_cont", current win streak
     "is_manual":       (0xB4, 14, 1),   # "isManual", transmission (1 on every test card)
     "wheel_cnt":       (0xB4, 15, 2),   # "wheelcnt"
-    "bgm":             (0xB4, 17, 2),   # "bgm", music setting
-    "bgm_num":         (0xB4, 19, 4),   # "bgm_num", music track
-    "navi":            (0xB4, 23, 2),   # "navi"
-    "steering":        (0xB4, 25, 4),   # "steering"
-    "time_disp":       (0xB4, 29, 1),   # "timedisp"
-    "force_end":       (0xB4, 30, 1),   # "forceend"
+    "bgm":             (0xB4, 17, 2),   # "bgm", music mode: 0 = on; 1 = off, 2 = fix (1 and 2 assumed)
+    "bgm_num":         (0xB4, 19, 4),   # "bgm_num", song picked in-game, presumably the one "fix" plays
+    "navi":            (0xB4, 23, 2),   # "navi": 0 = on; 1 = off, 2 = papercup (1 and 2 assumed)
+    "steering":        (0xB4, 25, 4),   # "steering": in-game setting 1-9, stored as setting - 1 (4 = the usual 5)
+    "time_disp":       (0xB4, 29, 1),   # "timedisp", time display: 0 = normal, 1 = simple (inferred)
+    "force_end":       (0xB4, 30, 1),   # "forceend", forced quit: 0 = off, 1 = on (inferred)
     "tuned_off":       (0xB4, 31, 1),   # "tunedoff"
     "dr_level":        (0xB8, 27, 5),   # "dr_level" = racer level (0-31)
     "vslv_max":        (0xBC, 0, 5),    # "vslv_max", highest versus level reached?
