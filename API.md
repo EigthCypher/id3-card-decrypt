@@ -7,7 +7,7 @@ The command-line tools in this repository are for people. Other programs can als
 
 ## Versions and releases
 
-- Releases are git tags `v<API_VERSION>.<n>`, e.g. `v1.0`, `v1.1`. Pin a tag, not a branch.
+- Releases are git tags `v<API_VERSION>.<n>`, e.g. `v1.0`, `v1.1`. Use tags, never a branch. Because of the rule below, a program can safely take the newest `v<its API>.<n>` tag automatically (`v1.10` is newer than `v1.9`), or pin one exact tag.
 - Within one API version, releases only **add**: new functions, new keys in returned dicts, new optional arguments, fixes to decoded values (a field decoded wrongly before is decoded correctly now).
 - Anything that removes, renames or changes the meaning of something listed here raises `API_VERSION` and starts a new tag series (`v2.0`). The change is described at the top of this file under "Changes".
 - `test_api.py` is part of the contract: a release whose `test_api.py` fails is not a release.
