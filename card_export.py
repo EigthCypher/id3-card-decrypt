@@ -66,12 +66,19 @@ def write_card_printdata(path, fields):
     )
 
 
-def write_hex_dump(data, path):
+def write_hex_dump(data, path, cipher_seed=None):
     """Hex dump: offset, 16 bytes in hex, then the same bytes as text
-    (non-printable bytes shown as '.')."""
+    (non-printable bytes shown as '.').
+
+    The cipher seed is not part of the decrypted data (it is the first 4
+    bytes of the card file; the decrypted data starts with the points), so
+    it is passed in separately and left out of the header if not given.
+    """
     with open(path, 'w', encoding='utf-8') as f:
         f.write(f"# Decrypted Initial D Ver.3 card data ({len(data)} bytes)\n")
-        f.write(f"# Seed: 0x{int.from_bytes(data[0:4], 'little'):08x}\n\n")
+        if cipher_seed is not None:
+            f.write(f"# Cipher seed: 0x{cipher_seed:08x}\n")
+        f.write("\n")
         for off in range(0, len(data), 16):
             row = data[off:off + 16]
             hex_str = ' '.join(f'{b:02x}' for b in row)
@@ -101,7 +108,7 @@ def main():
     os.makedirs(outdir, exist_ok=True)
 
     banner(f"card_export — {os.path.basename(base)}")
-    dec, _ = load_and_decrypt(args.cardfile)
+    dec, cipher_seed = load_and_decrypt(args.cardfile)
     fields = extract_fields(dec)
 
     result_line("Name:",     fields['name'])
@@ -115,7 +122,7 @@ def main():
     result_line("Plays:",    fields['plays_remaining'])
     result_line("Tuning:",   fields['tuning'])
 
-    write_hex_dump(dec, base + ".hex")
+    write_hex_dump(dec, base + ".hex", cipher_seed)
     with open(base + ".bin", 'wb') as f:
         f.write(dec)
     write_card_printdata(base + ".printdata.php", fields)
