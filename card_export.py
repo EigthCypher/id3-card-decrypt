@@ -10,8 +10,8 @@ Usage:
     python3 card_export.py <cardfile>
     python3 card_export.py <cardfile> --outdir /tmp/export
 
-Other tools import extract_fields() from this file, so keep its name and
-its dict keys stable.
+extract_fields() is part of the library API: its name and dict keys are
+promised in API.md and checked by test_api.py.
 """
 import sys, os, argparse
 

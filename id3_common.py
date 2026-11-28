@@ -49,6 +49,22 @@ that feed each one come from the game's card parser (ROM 0x0c1aaa20).
 
 import os, struct, sys
 
+# ─── library API (see API.md) ─────────────────────────────────────────
+
+# Version of the library contract in API.md. It goes up only when something
+# API.md promises changes in a way that can break a program importing these
+# modules (a removed or renamed function or key, a changed meaning). Adding
+# functions or keys does not change it. Release tags are v<API_VERSION>.<n>.
+API_VERSION = 1
+
+# Files a program needs at run time. They use only the standard library and
+# each other. Everything else in this repository (command-line tools, tests,
+# analysis/, test_cards/) is development material and need not be shipped.
+RUNTIME_MODULES = (
+    "id3_common.py", "id3_cipher.py", "id3_timeattack.py",
+    "card_to_json.py", "card_export.py", "json_to_card.py",
+)
+
 # ─── paths ────────────────────────────────────────────────────────────
 
 SCRIPT_DIR   = os.path.dirname(os.path.abspath(__file__))

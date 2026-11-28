@@ -48,15 +48,23 @@ Example `show_card.py` output:
 | `json_to_card.py` | Builds an encrypted card file from that JSON (partial edits are merged; invalid or output-only edits are rejected with an error) |
 | `card_export.py` | Writes a hex dump, the decrypted binary and `printdata.php` (for the card-print page) |
 | `reset_plays.py` | Writes a copy of a card with plays remaining set to 46 (or `--plays N`, 0-127) |
+| `test_api.py` | Checks the library contract in `API.md` (run before tagging a release) |
 | `test_roundtrip.py` | Checks every test card survives decode -> encode -> encrypt unchanged, lists the bits no field covers, and round-trips 2,000 random cards |
 | `id3_cipher.py` | The encryption, re-created from the game's code and commented step by step |
 | `id3_timeattack.py` | Time-attack records: best times and checkpoint splits |
 | `id3_common.py` | Shared field layout, course and car names, card file I/O |
+| `API.md` | The library contract for programs that import these modules |
 | `SCOPE.md` | Findings, ROM addresses, open questions, work log |
 | `analysis/` | One-off research tools: an SH-4 disassembler and ROM search helpers |
 
-`card_export.extract_fields()` is imported by other tools, so keep its
-name and dict keys stable.
+## Using it as a library
+
+Programs can import the card modules instead of running the tools. What
+they may rely on (functions, dict keys, which files to ship, Python 3.7,
+standard library only) is written down in `API.md`, versioned by
+`id3_common.API_VERSION` and released as tags `v<API_VERSION>.<n>`.
+`python3 test_api.py` checks that the code keeps every promise; run it
+before tagging. A change that breaks a promise raises `API_VERSION`.
 
 ## Test cards
 
